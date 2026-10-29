@@ -59,10 +59,13 @@ final class ShopDatabaseSeeder extends Seeder
 
         $entity_model->getConnection()->transaction(function () use ($entity_model): void {
             if ($entity_model->newQuery()->withoutGlobalScopes()->where('type', EntityType::Products)->exists()) {
-                $this->report(self::PRODUCT_ENTITY . ' already exists');
+                $this->logOutcome(0, 0, 1);
 
                 return;
             }
+
+            $created = 1;
+            $realigned = 0;
 
             /** @var Entity $entity */
             $entity = $this->create(Entity::class, [
@@ -74,11 +77,11 @@ final class ShopDatabaseSeeder extends Seeder
             /** @var Preset $preset */
             $preset = $this->create(Preset::class, ['name' => self::DEFAULT_PRESET, 'entity_id' => $entity->id]);
 
-            $preset->fields()->attach($this->bodyField()->getKey(), ['is_required' => true, 'default' => null]);
+            $preset->fields()->attach($this->bodyField($created, $realigned)->getKey(), ['is_required' => true, 'default' => null]);
 
             resolve(PresetVersioningService::class)->createVersion($preset);
 
-            $this->report(self::PRODUCT_ENTITY . ' <fg=green>created</>');
+            $this->logOutcome($created, $realigned);
         });
     }
 
@@ -86,9 +89,10 @@ final class ShopDatabaseSeeder extends Seeder
      * The body field is shared with the CMS: reuse its `content` field by name and create the same
      * definition only when none exists. A soft-deleted one is restored rather than attached
      * trashed (the preset snapshot would come out empty) or recreated (Core's `unique` rule on the
-     * field name does not look at soft-deleted rows, so the create would be refused).
+     * field name does not look at soft-deleted rows, so the create would be refused). A created
+     * field counts in `$created`, a restored one in `$realigned`.
      */
-    private function bodyField(): Field
+    private function bodyField(int &$created, int &$realigned): Field
     {
         $field_model = new Field;
         $existing = $field_model->newQuery()->withTrashed()->where($field_model->qualifyColumn('name'), self::BODY_FIELD)->first();
@@ -96,25 +100,16 @@ final class ShopDatabaseSeeder extends Seeder
         if ($existing instanceof Field) {
             if ($existing->trashed()) {
                 $existing->restore();
-                $this->report(self::BODY_FIELD . ' <fg=green>restored</>');
+                $realigned++;
             }
 
             return $existing;
         }
 
-        /** @var Field $created */
-        $created = $this->create(Field::class, ['name' => self::BODY_FIELD, 'type' => FieldType::Editor, 'options' => (object) [], 'is_translatable' => true]);
+        /** @var Field $field */
+        $field = $this->create(Field::class, ['name' => self::BODY_FIELD, 'type' => FieldType::Editor, 'options' => (object) [], 'is_translatable' => true]);
+        $created++;
 
-        $this->report(self::BODY_FIELD . ' <fg=green>created</>');
-
-        return $created;
-    }
-
-    /**
-     * Writes a progress line when the seeder runs from the console; silent otherwise (tests).
-     */
-    private function report(string $message): void
-    {
-        $this->command?->line('    - ' . $message);
+        return $field;
     }
 }
