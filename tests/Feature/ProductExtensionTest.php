@@ -134,3 +134,73 @@ it('persists a translatable content field written through the product root', fun
     expect($fresh->title)->toBe($title)
         ->and($fresh->content->title)->toBe($title);
 });
+
+/*
+ * A product shares the primary key of its content: `shop_products.id` is the id of the content it extends, so one
+ * id names the product on the content routes and on the product routes alike, and a mixed list holds one id space.
+ */
+
+/**
+ * A saved content a product can be linked to, on the Shop product entity.
+ */
+function shop_saved_backing_content(): Content
+{
+    $content = Product::newBackingContent();
+    $content->save();
+
+    return $content;
+}
+
+it('takes the id of its content', function (): void {
+    $product = Product::factory()->create();
+
+    expect($product->getKey())->toBe($product->content_id)
+        ->and(Product::query()->find($product->content_id)?->is($product))->toBeTrue();
+});
+
+it('takes the id of an existing content it is linked to', function (): void {
+    $company_id = Product::factory()->create()->company_id;
+    $content = shop_saved_backing_content();
+
+    $product = new Product([
+        'content_id' => $content->getKey(),
+        'company_id' => $company_id,
+        'kind' => ProductKind::Physical->value,
+    ]);
+    $product->save();
+
+    expect($product->getKey())->toBe($content->getKey());
+});
+
+it('refuses an id that is not the id of its content', function (): void {
+    $company_id = Product::factory()->create()->company_id;
+    $content = shop_saved_backing_content();
+
+    $product = new Product([
+        'content_id' => $content->getKey(),
+        'company_id' => $company_id,
+        'kind' => ProductKind::Physical->value,
+    ]);
+    $product->id = $content->getKey() + 1000;
+    $product->save();
+})->throws(LogicException::class);
+
+it('never moves a product to another content', function (): void {
+    $product = Product::factory()->create();
+    $other = shop_saved_backing_content();
+
+    $product->content_id = $other->getKey();
+    $product->save();
+})->throws(LogicException::class);
+
+it('does not let an update change the content of a product', function (): void {
+    expect((new Product)->getRules()['update'])->not->toHaveKey('content_id');
+});
+
+it('refuses in the database a row whose id is not the id of its content', function (): void {
+    $product = Product::factory()->create();
+    $other = shop_saved_backing_content();
+
+    DB::table((new Product)->getTable())->where('id', $product->getKey())->update(['content_id' => $other->getKey()]);
+})->throws(Illuminate\Database\QueryException::class)
+    ->skip(fn (): bool => ! in_array(DB::connection()->getDriverName(), ['pgsql', 'mysql', 'mariadb'], true), 'The database guard exists on PostgreSQL, MySQL and MariaDB only.');

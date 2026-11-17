@@ -7,6 +7,7 @@ namespace Modules\Shop\Models;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Validation\Rule;
+use LogicException;
 use Modules\CMS\Contracts\ExtendsContent;
 use Modules\CMS\Enums\CMSTables;
 use Modules\CMS\Models\Concerns\ExtendsContentTrait;
@@ -69,6 +70,15 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
         'deleted_at',
         'is_deleted',
     ];
+
+    /**
+     * The key is not generated: a product shares the primary key of its content (`id` = `content_id`), so one id
+     * names it on the content routes and on the product routes alike. Set on create, see {@see self::booted()}.
+     *
+     * @var bool
+     */
+    #[Override]
+    public $incrementing = false;
 
     /**
      * @var string
@@ -281,8 +291,8 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
             'release_date' => ['nullable', 'date'],
             'metadata' => ['nullable', 'array'],
         ]);
+        // No `content_id` on update: the content is the identity of the product (it shares its id).
         $rules['update'] = array_merge($rules['update'], [
-            'content_id' => ['sometimes', 'integer', Rule::exists(CMSTables::Contents->value, 'id')->whereNull('deleted_at')],
             'kind' => ['sometimes', 'string', ProductKind::validationRule()],
             'is_published_in_shop' => ['sometimes', 'boolean'],
             'featured' => ['sometimes', 'boolean'],
@@ -312,6 +322,31 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
     #[Override]
     protected static function booted(): void
     {
+        // The shared key: a new product takes the id of its content. The seam's first save stages the content,
+        // saves it and sets `content_id` before this runs; a product linked to an existing content has it already.
+        self::creating(static function (self $product): void {
+            $content_id = $product->getAttribute('content_id');
+
+            if ($content_id === null) {
+                return;
+            }
+
+            $id = $product->getAttribute('id');
+
+            if ($id !== null && (string) $id !== (string) $content_id) {
+                throw new LogicException(sprintf('A product takes the id of its content: id %s given for content %s.', $id, $content_id));
+            }
+
+            $product->setAttribute('id', $content_id);
+        });
+
+        // The content is the identity of the product: moving a product to another content would change its id.
+        self::updating(static function (self $product): void {
+            if ($product->isDirty('content_id')) {
+                throw new LogicException(sprintf('The content of product %s cannot change: it is the identity of the product.', $product->getKey()));
+            }
+        });
+
         self::deleted(static function (self $product): void {
             $deleted_at = $product->getRawOriginal('deleted_at');
 

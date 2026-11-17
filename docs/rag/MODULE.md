@@ -84,8 +84,9 @@ Columns:
 
 | Column | Notes |
 |--------|-------|
+| `id` | Shared key: the id of the product's content, never generated (`$incrementing = false`). The model sets it from `content_id` on create and refuses any other value. The database keeps `id` = `content_id` with a CHECK on PostgreSQL and `BEFORE INSERT`/`BEFORE UPDATE` triggers on MySQL and MariaDB; on SQLite and Oracle the model is the only guard. One id names a product on the content routes and on the product routes alike |
 | `company_id` | Tenant, through ERP `BelongsToCompany` (E23): company global scope, `creating` auto-fill from the current company, `company_id` added to `$fillable` |
-| `content_id` | NOT NULL and UNIQUE (E16): one extender per content, a product always has a body. FK to CMS `contents`, `cascadeOnDelete` |
+| `content_id` | NOT NULL and UNIQUE (E16): one extender per content, a product always has a body. FK to CMS `contents`, `cascadeOnDelete`. Immutable: it is the identity of the product, so an update that changes it is refused and `getRules()` has no `content_id` on update. To change a product's text, edit its content |
 | `kind` | `ProductKind`. `physical` is the column default only: the model does not apply it in memory (`(new Product)->kind` is null) and `getRules()` requires `kind` on create |
 | `is_published_in_shop` | boolean, default false |
 | `featured` | boolean, default false |
@@ -94,7 +95,8 @@ Columns:
 
 Index `shop_products_company_published_IDX` on `(company_id, is_published_in_shop)`.
 Validation lives in `getRules()` (`kind` required on create and bounded to
-`ProductKind`, `content_id` must exist in `contents` and not be soft-deleted).
+`ProductKind`, `content_id` must exist in `contents` and not be soft-deleted on
+create, and cannot be sent on update).
 
 ### Seam registration
 

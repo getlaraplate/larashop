@@ -16,9 +16,12 @@ return new class extends Migration
     public function up(): void
     {
         $table_name = ShopTables::Products->value;
+        $connection = Schema::getConnection();
 
         Schema::create($table_name, function (Blueprint $table) use ($table_name): void {
-            $table->id();
+            // Shared key: a product is identified by the id of its content (`id` = `content_id`), so one id names it
+            // on the content routes and on the product routes alike. Not generated here: the model sets it on create.
+            $table->unsignedBigInteger('id')->primary();
 
             // E23: the product carries its tenant via ERP BelongsToCompany.
             ERPMigrateUtils::companyForeign($table, indexed: false);
@@ -41,6 +44,32 @@ return new class extends Migration
 
             $table->index(['company_id', 'is_published_in_shop'], "{$table_name}_company_published_IDX");
         });
+
+        // The database keeps `id` = `content_id` where it can, as Core's taxonomies migration guards its own rule:
+        // a CHECK on PostgreSQL; triggers on MySQL and MariaDB, which refuse a CHECK on a column a foreign key uses
+        // (error 3823). SQLite cannot add a CHECK to an existing table: there the model is the only guard.
+        $driver_name = $connection->getDriverName();
+        $grammar = $connection->getQueryGrammar();
+        $wrapped_table = $grammar->wrapTable($table_name);
+
+        if ($driver_name === 'pgsql') {
+            $wrapped_constraint = $grammar->wrap("{$table_name}_id_content_CHECK");
+            $connection->statement("ALTER TABLE {$wrapped_table} ADD CONSTRAINT {$wrapped_constraint} CHECK (id = content_id)");
+        } elseif (in_array($driver_name, ['mysql', 'mariadb'], true)) {
+            foreach (['INSERT' => 'insert', 'UPDATE' => 'update'] as $event => $suffix) {
+                $wrapped_trigger = $grammar->wrap("{$table_name}_id_content_{$suffix}");
+                $connection->unprepared(<<<SQL
+                    CREATE TRIGGER {$wrapped_trigger}
+                    BEFORE {$event} ON {$wrapped_table}
+                    FOR EACH ROW
+                    BEGIN
+                        IF NEW.id <> NEW.content_id THEN
+                            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A product takes the id of its content';
+                        END IF;
+                    END;
+                SQL);
+            }
+        }
     }
 
     public function down(): void
