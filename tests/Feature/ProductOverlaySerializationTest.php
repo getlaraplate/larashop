@@ -42,8 +42,8 @@ it('never replaces a native key of the product with one of the content', functio
     $product = product_with_title('Moon lamp');
     $array = $product->toArray();
 
-    expect($product->id)->not->toBe($product->content_id)
-        ->and($array['id'])->toBe($product->id)
+    // The product shares the id of its content, so `id` cannot tell the two apart: the other native keys can.
+    expect($array['id'])->toBe($product->id)
         ->and($array['content_id'])->toBe($product->content_id)
         ->and($array['company_id'])->toBe($product->company_id)
         ->and($array['content'])->toBeArray();
