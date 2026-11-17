@@ -88,7 +88,7 @@ Columns:
 | `company_id` | Tenant, through ERP `BelongsToCompany` (E23): company global scope, `creating` auto-fill from the current company, `company_id` added to `$fillable` |
 | `content_id` | NOT NULL and UNIQUE (E16): one extender per content, a product always has a body. FK to CMS `contents`, `cascadeOnDelete`. Immutable: it is the identity of the product, so an update that changes it is refused and `getRules()` has no `content_id` on update. To change a product's text, edit its content |
 | `kind` | `ProductKind`. `physical` is the column default only: the model does not apply it in memory (`(new Product)->kind` is null) and `getRules()` requires `kind` on create |
-| `is_published_in_shop` | boolean, default false |
+| `is_published_in_shop` | boolean, default false. Channel intent (spec E18): a product is shown on the storefront only when its content is approved and currently valid **and** this flag is true. Neither gate alone is enough: a draft, expired or scheduled content hides the card whatever the flag, and `false` hides it whatever the content state |
 | `featured` | boolean, default false |
 | `release_date` | nullable date |
 | `metadata` | nullable json, cast to array |
