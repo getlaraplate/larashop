@@ -45,8 +45,8 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
     use ExtendsContentTrait;
 
     /**
-     * The stable morph alias CMS stores on `contents.extended_type` and resolves through the
-     * {@see \Modules\CMS\Services\ContentExtenderRegistry}.
+     * The stable morph alias CMS stores on `contents.extended_type`, registered for `Content` in the Core
+     * {@see \Modules\Core\Search\Extensions\ExtensionRegistry}.
      */
     public const string CONTENT_ALIAS = 'shop.product';
 
@@ -164,6 +164,7 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
             'kind' => $this->kind?->value,
             'is_published_in_shop' => $this->is_published_in_shop,
             'featured' => $this->featured,
+            'company_id' => $this->company_id,
         ];
     }
 
@@ -179,7 +180,30 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
             'kind' => ['type' => FieldType::Keyword, 'filterable' => true],
             'is_published_in_shop' => ['type' => FieldType::Boolean, 'filterable' => true],
             'featured' => ['type' => FieldType::Boolean, 'filterable' => true],
+            'company_id' => ['type' => FieldType::Integer, 'filterable' => true],
         ];
+    }
+
+    /**
+     * The columns the merge keeps for the product: every other key is the content's (E2a). None of them may be named
+     * like an attribute of `Content` except the native keys (XS17 of spec 2026-11-17-extended-entity-search-design.md,
+     * checked by `ProductColumnNamesTest`).
+     *
+     * @return list<string>
+     */
+    #[Override]
+    public function extensionOwnColumns(): array
+    {
+        return self::OWN_COLUMNS;
+    }
+
+    /**
+     * The Shop product entity: a dynamic field named like a column of `Product` is refused on its presets (XS17).
+     */
+    #[Override]
+    public function extensionEntityType(): ?string
+    {
+        return EntityType::Products->value;
     }
 
     /**
@@ -413,6 +437,7 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
     protected function casts(): array
     {
         return [
+            'company_id' => 'integer',
             'kind' => ProductKind::class,
             'is_published_in_shop' => 'boolean',
             'featured' => 'boolean',

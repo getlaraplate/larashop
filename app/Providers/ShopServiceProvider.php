@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Modules\Shop\Providers;
 
 use Illuminate\Support\Facades\Gate;
-use Modules\CMS\Services\ContentExtenderRegistry;
+use Modules\CMS\Models\Content;
 use Modules\Core\Overrides\ModuleServiceProvider;
+use Modules\Core\Search\Extensions\ExtensionRegistry;
 use Modules\Shop\Models\Product;
 use Modules\Shop\Policies\ProductPolicy;
 use Override;
@@ -30,10 +31,11 @@ final class ShopServiceProvider extends ModuleServiceProvider
     ];
 
     /**
-     * Register the product as a CMS content extender (E4). The registry is a singleton bound by
-     * CMSServiceProvider; resolving() runs the registration whenever it is first resolved, and the
-     * resolved() guard covers the case where it was already resolved before this provider booted —
-     * so registration takes effect regardless of provider order.
+     * Register the product as an extender of CMS `Content` (E4) in the Core extension registry (spec
+     * 2026-11-17-extended-entity-search-design.md, XS13). The registry is a singleton bound by Core's
+     * SearchServiceProvider; resolving() runs the registration whenever it is first resolved, and the resolved()
+     * guard covers the case where it was already resolved before this provider booted, so registration takes effect
+     * regardless of provider order.
      */
     #[Override]
     public function register(): void
@@ -41,14 +43,14 @@ final class ShopServiceProvider extends ModuleServiceProvider
         parent::register();
 
         $this->app->resolving(
-            ContentExtenderRegistry::class,
-            static function (ContentExtenderRegistry $registry): void {
-                $registry->register(Product::CONTENT_ALIAS, Product::class);
+            ExtensionRegistry::class,
+            static function (ExtensionRegistry $registry): void {
+                $registry->register(Content::class, Product::CONTENT_ALIAS, Product::class);
             },
         );
 
-        if ($this->app->resolved(ContentExtenderRegistry::class)) {
-            $this->app->make(ContentExtenderRegistry::class)->register(Product::CONTENT_ALIAS, Product::class);
+        if ($this->app->resolved(ExtensionRegistry::class)) {
+            $this->app->make(ExtensionRegistry::class)->register(Content::class, Product::CONTENT_ALIAS, Product::class);
         }
     }
 

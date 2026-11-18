@@ -6,8 +6,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\CMS\Models\Content;
-use Modules\CMS\Services\ContentExtensionResolver;
 use Modules\Core\Overrides\LocaleScope;
+use Modules\Core\Search\Extensions\ExtensionRegistry;
+use Modules\Core\Search\Schema\FieldType;
 use Modules\Shop\Enums\ProductKind;
 use Modules\Shop\Models\Product;
 
@@ -23,8 +24,30 @@ it('an extended product content is hidden from a plain Content query', function 
         ->and(Content::withExtended()->find($product->content_id))->not->toBeNull();
 });
 
+it('is registered for Content in the Core extension registry', function (): void {
+    expect(app(ExtensionRegistry::class)->resolve(Content::class, Product::CONTENT_ALIAS))->toBe(Product::class)
+        ->and((new Content())->extenders())->toHaveKey(Product::CONTENT_ALIAS);
+});
+
+it('indexes its company and its publication in the extension section of its content', function (): void {
+    $product = Product::factory()->create(['is_published_in_shop' => true, 'featured' => false]);
+
+    expect($product->searchableExtension())->toBe([
+        'kind' => $product->kind?->value,
+        'is_published_in_shop' => true,
+        'featured' => false,
+        'company_id' => $product->company_id,
+    ])->and($product->searchableExtensionMapping()['company_id'])->toBe(['type' => FieldType::Integer, 'filterable' => true])
+        ->and(Content::withExtended()->findOrFail($product->content_id)->extensionSearchDocument())->toMatchArray([
+            'type' => Product::CONTENT_ALIAS,
+            'company_id' => $product->company_id,
+        ])
+        // An integer in the index whatever the driver returns: the mapping declares it Integer.
+        ->and($product->refresh()->searchableExtension()['company_id'])->toBeInt();
+});
+
 it('a product listing upcasts in a constant number of queries', function (): void {
-    $resolver = app(ContentExtensionResolver::class);
+    $host = new Content();
 
     // The upcast consumes a lean page of extended contents: it only reads each row's key and
     // `extended_type`, then re-attaches that very content to its extender via setRelation(). The
@@ -37,14 +60,14 @@ it('a product listing upcasts in a constant number of queries', function (): voi
         ->without('presettable', 'translation')
         ->get();
 
-    $upcastQueryCount = static function () use ($resolver, $fetchPage): int {
+    $upcastQueryCount = static function () use ($host, $fetchPage): int {
         // Warm the request-scoped permission-existence memos (Content/Product `select`) so the count
         // reflects the steady-state cost, not first-touch cache fills that happen once per request.
-        $resolver->resolve($fetchPage());
+        $host->upcastExtensions($fetchPage());
 
         DB::connection()->flushQueryLog();
         DB::connection()->enableQueryLog();
-        $resolver->resolve($fetchPage());
+        $host->upcastExtensions($fetchPage());
         $queries = count(DB::connection()->getQueryLog());
         DB::connection()->disableQueryLog();
 
@@ -52,12 +75,12 @@ it('a product listing upcasts in a constant number of queries', function (): voi
     };
 
     Product::factory()->count(5)->create();
-    $resolvedForFive = $resolver->resolve($fetchPage());
+    $resolvedForFive = $host->upcastExtensions($fetchPage());
     $queriesForFive = $upcastQueryCount();
 
     // Grow the page: the count must not grow with it (no N+1).
     Product::factory()->count(7)->create();
-    $resolvedForTwelve = $resolver->resolve($fetchPage());
+    $resolvedForTwelve = $host->upcastExtensions($fetchPage());
     $queriesForTwelve = $upcastQueryCount();
 
     expect($resolvedForFive)->toHaveCount(5)
