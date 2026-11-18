@@ -8,12 +8,13 @@ support into a storefront.
 Catalog foundation plus a backoffice write surface. The module ships the product
 catalog core (product, variant, variant composition), the seed of the product
 content entity, and the actions and Filament resource that create and edit a
-whole product (see «Admin write surface»). It has no stock, cart, checkout or
-payment behaviour, and no read or API surface yet (see «Not in this module yet»).
+whole product (see «Admin write surface»). Products are read through Core's generic
+CRUD routes (see «Search and list of products»). It has no stock, cart, checkout or
+payment behaviour, and no Shop-specific read endpoint yet (see «Not in this module yet»).
 
 The module is enabled in the committed `modules_statuses.json`. Enabling it registers
-`shop.product` as the first production content extender in the CMS
-`ContentExtenderRegistry` (see «Seam registration»).
+`shop.product` as the first production content extender in Core's
+`ExtensionRegistry`, for `Content` (see «Seam registration»).
 
 ## Boundaries
 
@@ -101,18 +102,19 @@ create, and cannot be sent on update).
 ### Seam registration
 
 `ShopServiceProvider::register()` registers `Product::CONTENT_ALIAS`
-(`shop.product`) in the CMS `ContentExtenderRegistry`, both when the registry
-resolves and, if it already resolved earlier, immediately, so registration does
-not depend on provider order. The trait stamps `contents.extended_type` with that
+(`shop.product`) for `Content` in Core's `Search\Extensions\ExtensionRegistry`,
+both when the registry resolves and, if it already resolved earlier, immediately,
+so registration does not depend on provider order. The trait stamps `contents.extended_type` with that
 alias on the first save.
 
 Consequences of the seam to keep in mind:
 
-- An extended content is **hidden** from a default `Content` query
-  (`HidesExtendedContent` scope) and from generic CMS search. Read products
-  through `Product`, or use `Content::withExtended()` to reach the contents.
+- An extended content is **hidden** from a default `Content` query (Core
+  `HidesExtendedRows` scope) and from generic CMS search and list. Read products
+  through `Product`, use `Content::withExtended()` to reach the contents, or ask a
+  content list for them with `with_extended` (see «Search and list of products»).
 - `Product::query()` always eager-loads `content` (`$with`). Upcasting a page of
-  extended contents with the CMS `ContentExtensionResolver` costs a constant
+  extended contents with `Content::upcastExtensions()` costs a constant
   number of queries per distinct alias (one for the page, one batched query for the
   extenders), not one per row. That holds for a lean page: the test strips the
   `presettable` and `translation` eager-loads `Content` carries in `$with`. The
@@ -121,7 +123,7 @@ Consequences of the seam to keep in mind:
   content of another company throws (it finds no extender row). This is a tracked
   follow-up.
 - `$product->content` resolves despite the hide scope: `content()` removes only
-  `HidesExtendedContent`, not the soft-delete scope. Once the product is
+  `HidesExtendedRows`, not the soft-delete scope. Once the product is
   soft-deleted its content is trashed with it (E17), so `content` is null and the
   merged reads (E2a) return null.
 
@@ -246,9 +248,46 @@ Developer notes on the cascade:
 
 The seam merges `Product::searchableExtension()` into the content's search
 document under the nested `extension` object (`kind`, `is_published_in_shop`,
-`featured`; CMS adds a `type` key holding the `shop.product` alias), and `searchableExtensionMapping()` contributes the typed mapping
-(keyword and boolean filters). The trait re-sends the content to the index after
-every product save, so the document never lags behind the extension.
+`featured`, `company_id`; the host adds a `type` key holding the `shop.product` alias), and
+`searchableExtensionMapping()` contributes the typed mapping (keyword, boolean and integer
+filters, all filterable). The trait re-sends the content to the index after every product save,
+so the document never lags behind the extension. `company_id` is cast to an integer, as its
+mapping declares. A CMS test checks that every key written is declared and the reverse.
+
+### Search and list of products
+
+Spec `docs/superpowers/specs/2026-11-17-extended-entity-search-design.md` (XS1 to XS10).
+
+- **`/select/shop/products`** reads `shop_products` with the `shop_products.select`
+  permission and the `Product` ACL, the content merged in.
+- **`/search/shop/products`** has no index of its own: it runs on the `contents` index, kept
+  to the `shop.product` alias, with the `shop_products.select` permission and the `Product`
+  ACL, and reloads the hits as products in the order of the engine. A filter or ACL condition on
+  an attribute the product mounts from its content (`title`, `valid_from`) filters the content
+  field; on a product column it filters `extension.<column>` (`kind`, `is_published_in_shop`,
+  `featured`, `company_id`). A request filter on any other product column (`release_date`,
+  `metadata`, `content_id`) answers 400; an ACL condition on one holds when the hits reload.
+- **`/select` and `/search` of `cms/contents` with `with_extended=true`** include the products
+  of a user who may select `shop_products`, each passing the contents ACL and the `Product` ACL,
+  returned as products (`extended_type` is `shop.product`).
+- **The public.** The Shop seeder grants the `guest` role of the api guard `shop_products.select`
+  with an ACL: the content in its publication window (`valid_from <= now`, `valid_to` in the
+  future or null) and `is_published_in_shop` true. A draft, scheduled or expired content hides the
+  product whatever the flag; the flag false hides it whatever the content. No approval condition:
+  a write that needs approval never reaches the row. A re-seed never overwrites an ACL an operator
+  changed. On Typesense, a content with no `valid_to` is not found by the public search: a null
+  date has no indexed value there.
+
+### Product column names (XS17)
+
+No column of `shop_products` may be named like a column, a translated field or a dynamic
+component of `Content`, except `id`, the timestamps and the soft-delete columns, even with the
+same type: the merge routes a key to the product or to the content by name only, so a shared name
+would hide the content's field behind the product, silently. `ProductColumnNamesTest` checks
+`Product::OWN_COLUMNS` against the columns of `cms_contents` and the translated fields of
+`Content`, and that every column of `shop_products` is listed there; Core refuses a field named
+like a product column on a preset of the product entity. Add a product column to `OWN_COLUMNS`
+and pick a name the content does not use.
 
 ## ProductVariant
 
@@ -453,8 +492,9 @@ on every write, once those permissions are registered. A user holding only the
 refused there and rolled back. Failing closed is intended: managing a product takes
 the part permissions as well.
 
-No Shop role grants are seeded, so the surface is super-admin-only until an operator
-grants the permissions.
+The only Shop grant seeded is the public read of products on the api guard (see «Search and
+list of products»); the backoffice is super-admin-only until an operator grants the
+permissions.
 
 ### Scope
 
@@ -481,9 +521,9 @@ version; locking the aggregate is a feature of its own (see `EditProduct`).
 - Digital fulfilment (download grants for `digital` products).
 - Reviews, order and delivery read models, customer support through SAO.
 - Storefront classification: CMS categories, facets and per-category presets.
-- A read or API surface for the catalog: no API resources, `/app` or `/api/v1`
-  endpoints (see «HTTP surface»). The write surface is the one described in «Admin
-  write surface».
+- A Shop-specific read surface for the catalog: no API resources or endpoints of its
+  own; products are read through Core's generic CRUD routes (see «HTTP surface»). The
+  write surface is the one described in «Admin write surface».
 - Merchant-facing catalog management (left to `laraplate-ui`) and optimistic locking
   of the product aggregate.
 
@@ -516,8 +556,9 @@ version; locking the aggregate is a feature of its own (see `EditProduct`).
 
 ## HTTP surface
 
-The module has no `/app` or `/api/v1` surface: no controllers, Form Requests or API
-resources. `routes/web.php` and `routes/api.php` are empty. The only routes are the
+The module has no `/app` or `/api/v1` routes of its own: no controllers, Form Requests or API
+resources. `routes/web.php` and `routes/api.php` are empty. Core's generic CRUD routes read
+products (`select/shop/products`, `search/shop/products`, see «Search and list of products»). The only routes are the
 three pages of the Filament product resource under the admin panel
 (`admin/shop/products`, `/create` and `/{record}/edit`, named
 `filament.admin.resources.shop.products.*`; see «Admin write surface»). The catalog's
