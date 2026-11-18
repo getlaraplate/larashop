@@ -198,6 +198,15 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
     }
 
     /**
+     * The Shop product entity: a dynamic field named like a column of `Product` is refused on its presets (XS17).
+     */
+    #[Override]
+    public function extensionEntityType(): ?string
+    {
+        return EntityType::Products->value;
+    }
+
+    /**
      * Read a content-owned attribute as if it were native on the product (E2a).
      *
      * @param  string  $key

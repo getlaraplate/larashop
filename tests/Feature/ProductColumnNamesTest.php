@@ -2,7 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Validation\ValidationException;
 use Modules\CMS\Models\Content;
+use Modules\Core\Casts\FieldType;
+use Modules\Core\Models\Field;
+use Modules\Core\Models\Pivot\Fieldable;
+use Modules\Shop\Casts\EntityType;
+use Modules\Shop\Models\Entity;
+use Modules\Shop\Models\Pivot\Presettable;
 use Modules\Shop\Models\Product;
 
 beforeEach(function (): void {
@@ -37,4 +44,20 @@ it('declares as its own columns exactly the keys its merge keeps for itself', fu
     $columns = (new Product())->getConnection()->getSchemaBuilder()->getColumnListing((new Product())->getTable());
 
     expect(array_diff($columns, (new Product())->extensionOwnColumns()))->toBe([]);
+});
+
+it('refuses a field named like a column of Product on the presets of the product entity', function (): void {
+    expect((new Product())->extensionEntityType())->toBe(EntityType::Products->value);
+
+    $entity_id = Entity::query()->where('type', EntityType::Products)->value('id');
+    $preset_id = Presettable::query()->where('entity_id', $entity_id)->value('preset_id');
+    $field = Field::query()->create(['name' => 'featured', 'type' => FieldType::Text, 'options' => new stdClass()]);
+
+    expect(fn () => Fieldable::query()->create([
+        'field_id' => $field->id,
+        'preset_id' => $preset_id,
+        'order_column' => 99,
+        'default' => null,
+        'is_required' => false,
+    ]))->toThrow(ValidationException::class, 'XS17');
 });
