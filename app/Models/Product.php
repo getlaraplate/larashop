@@ -437,6 +437,7 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
     protected function casts(): array
     {
         return [
+            'company_id' => 'integer',
             'kind' => ProductKind::class,
             'is_published_in_shop' => 'boolean',
             'featured' => 'boolean',

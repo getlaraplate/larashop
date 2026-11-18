@@ -41,7 +41,9 @@ it('indexes its company and its publication in the extension section of its cont
         ->and(Content::withExtended()->findOrFail($product->content_id)->extensionSearchDocument())->toMatchArray([
             'type' => Product::CONTENT_ALIAS,
             'company_id' => $product->company_id,
-        ]);
+        ])
+        // An integer in the index whatever the driver returns: the mapping declares it Integer.
+        ->and($product->refresh()->searchableExtension()['company_id'])->toBeInt();
 });
 
 it('a product listing upcasts in a constant number of queries', function (): void {
