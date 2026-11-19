@@ -275,8 +275,9 @@ Spec `docs/superpowers/specs/2026-11-17-extended-entity-search-design.md` (XS1 t
   future or null) and `is_published_in_shop` true. A draft, scheduled or expired content hides the
   product whatever the flag; the flag false hides it whatever the content. No approval condition:
   a write that needs approval never reaches the row. A re-seed never overwrites an ACL an operator
-  changed. On Typesense, a content with no `valid_to` is not found by the public search: a null
-  date has no indexed value there.
+  changed. Every engine applies the window, Typesense included: there a date is indexed as a
+  timestamp and a null date as a sentinel value no range matches (see Core
+  `docs/rag/MODULE.md`).
 
 ### Product column names (XS17)
 
