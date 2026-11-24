@@ -201,7 +201,7 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
      * The Shop product entity: a dynamic field named like a column of `Product` is refused on its presets (XS17).
      */
     #[Override]
-    public function extensionEntityType(): ?string
+    public function extensionEntityType(): string
     {
         return EntityType::Products->value;
     }
@@ -357,8 +357,12 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
 
             $id = $product->getAttribute('id');
 
-            if ($id !== null && (string) $id !== (string) $content_id) {
-                throw new LogicException(sprintf('A product takes the id of its content: id %s given for content %s.', $id, $content_id));
+            if ($id !== null && (! is_scalar($id) || ! is_scalar($content_id) || (string) $id !== (string) $content_id)) {
+                throw new LogicException(sprintf(
+                    'A product takes the id of its content: id %s given for content %s.',
+                    is_scalar($id) ? $id : '?',
+                    is_scalar($content_id) ? $content_id : '?',
+                ));
             }
 
             $product->setAttribute('id', $content_id);
@@ -367,7 +371,9 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
         // The content is the identity of the product: moving a product to another content would change its id.
         self::updating(static function (self $product): void {
             if ($product->isDirty('content_id')) {
-                throw new LogicException(sprintf('The content of product %s cannot change: it is the identity of the product.', $product->getKey()));
+                $key = $product->getKey();
+
+                throw new LogicException(sprintf('The content of product %s cannot change: it is the identity of the product.', is_scalar($key) ? $key : '?'));
             }
         });
 
