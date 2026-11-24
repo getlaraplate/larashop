@@ -38,6 +38,14 @@ use Override;
  * @property ProductKind|null $kind
  * @property bool $is_published_in_shop
  * @property bool $featured
+ * @property int $id
+ * @property int $company_id
+ * @property \Carbon\CarbonImmutable|null $release_date
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property \Carbon\CarbonImmutable|null $deleted_at
+ * @property bool|null $is_deleted Whether the entity is deleted
+ * @property array<array-key, mixed>|null $metadata
  */
 final class Product extends Model implements ExtendsContent, IMountsRelatedAttributes
 {

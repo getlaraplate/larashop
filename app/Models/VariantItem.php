@@ -37,6 +37,10 @@ use Override;
  * @property numeric-string $quantity
  * @property string $role
  * @property \Carbon\CarbonInterface|null $deleted_at
+ * @property int $id
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class VariantItem extends Model implements IsPartOfParent
 {

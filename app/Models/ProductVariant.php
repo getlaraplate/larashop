@@ -28,6 +28,10 @@ use Override;
  * @property bool $is_default
  * @property array<string, mixed>|null $attributes
  * @property \Carbon\CarbonInterface|null $deleted_at
+ * @property int $id
+ * @property \Carbon\CarbonImmutable $created_at
+ * @property \Carbon\CarbonImmutable $updated_at
+ * @property bool|null $is_deleted Whether the entity is deleted
  */
 final class ProductVariant extends Model implements IsPartOfParent
 {
