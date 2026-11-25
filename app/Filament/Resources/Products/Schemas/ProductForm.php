@@ -237,7 +237,8 @@ final class ProductForm
      */
     public static function stateOf(Product $product): array
     {
-        $components = $product->components;
+        $content = $product->mergedContent();
+        $components = $content?->components;
         $variants = [];
 
         foreach ($product->variants()->with(['items' => static fn (HasMany $items): HasMany => $items->orderBy('id')])->orderBy('id')->get() as $variant) {
@@ -260,13 +261,13 @@ final class ProductForm
             'featured' => $product->featured,
             'release_date' => self::formatDate($product->release_date, 'Y-m-d'),
             'metadata' => $product->metadata ?? [],
-            'title' => $product->title,
-            'slug' => $product->slug,
+            'title' => $content?->title,
+            'slug' => $content?->slug,
             // The components are edited as JSON text; an empty set is an empty object, not an empty list.
             'components' => is_array($components) && $components !== [] ? json_encode($components, JSON_THROW_ON_ERROR) : '{}',
-            'order_column' => $product->order_column,
-            'valid_from' => self::formatDate($product->valid_from, 'Y-m-d H:i:s'),
-            'valid_to' => self::formatDate($product->valid_to, 'Y-m-d H:i:s'),
+            'order_column' => $content?->order_column,
+            'valid_from' => self::formatDate($content?->valid_from, 'Y-m-d H:i:s'),
+            'valid_to' => self::formatDate($content?->valid_to, 'Y-m-d H:i:s'),
             'variants' => $variants,
         ];
     }

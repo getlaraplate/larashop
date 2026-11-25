@@ -336,6 +336,24 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
     }
 
     /**
+     * The merged content: the loaded relation when present, else the content staged for the first
+     * save. Never triggers a lazy load, so attribute access on an unretrieved product stays query-free.
+     * Reading a content attribute through it keeps its type, which the routed `$product->title` loses.
+     */
+    public function mergedContent(): ?Content
+    {
+        if ($this->relationLoaded('content')) {
+            $loaded = $this->getRelation('content');
+
+            if ($loaded instanceof Content) {
+                return $loaded;
+            }
+        }
+
+        return $this->tempContent instanceof Content ? $this->tempContent : null;
+    }
+
+    /**
      * Persist a merged content whose fields changed through the product root before the product is
      * written (E2a). The seam trait's own `save()` already stages and persists a not-yet-linked
      * content on the first save (flushing its pending translations through the content's own `saved`
@@ -472,22 +490,5 @@ final class Product extends Model implements ExtendsContent, IMountsRelatedAttri
             || $this->hasGetMutator($key)
             || $this->hasAttributeMutator($key)
             || method_exists($this, $key);
-    }
-
-    /**
-     * The merged content: the loaded relation when present, else the content staged for the first
-     * save. Never triggers a lazy load, so attribute access on an unretrieved product stays query-free.
-     */
-    private function mergedContent(): ?Content
-    {
-        if ($this->relationLoaded('content')) {
-            $loaded = $this->getRelation('content');
-
-            if ($loaded instanceof Content) {
-                return $loaded;
-            }
-        }
-
-        return $this->tempContent instanceof Content ? $this->tempContent : null;
     }
 }
