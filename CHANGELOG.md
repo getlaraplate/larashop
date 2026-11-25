@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- *(shop)* Read a product's content attributes through its merged content
+
 ## [0.1.1] - 2026-11-25
 
 ### 🐛 Bug Fixes
