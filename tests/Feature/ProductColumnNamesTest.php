@@ -50,7 +50,7 @@ it('refuses a field named like a column of Product on the presets of the product
     expect((new Product())->extensionEntityType())->toBe(EntityType::Products->value);
 
     $entity_id = Entity::query()->where('type', EntityType::Products)->value('id');
-    $preset_id = Presettable::query()->where('entity_id', $entity_id)->value('preset_id');
+    $preset_id = Presettable::query()->where('entity_id', $entity_id)->firstOrFail()->preset_id;
     $field = Field::query()->create(['name' => 'featured', 'type' => FieldType::Text, 'options' => new stdClass()]);
 
     expect(fn () => Fieldable::query()->create([
