@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-11-25
+
+### 🐛 Bug Fixes
+
+- *(phpstan)* Type the product's identity checks
+
+### 📚 Documentation
+
+- *(shop)* The validity window works on Typesense too
+- *(models)* Every model declares its columns as @property tags
+- *(models)* Declare the json and array columns too
+
+### 🧪 Testing
+
+- *(shop)* Read the product preset through a whole presettable row
+
 ## [0.1.0] - 2026-11-18
 
 ### 🚀 Features
