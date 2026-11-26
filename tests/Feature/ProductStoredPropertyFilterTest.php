@@ -7,6 +7,8 @@ use Modules\Core\Models\Role;
 use Modules\Shop\Models\Product;
 use Modules\Shop\Models\ProductVariant;
 
+uses()->group('db2');
+
 beforeEach(function (): void {
     app()->setLocale('en');
     setupShopEntities();
