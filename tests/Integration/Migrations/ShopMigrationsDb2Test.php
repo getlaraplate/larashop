@@ -15,6 +15,6 @@ it('keeps id equal to content_id with a CHECK constraint on Db2', function (): v
     expect($checks)->toHaveCount(1)
         ->and($checks[0])->toContain('ADD CONSTRAINT')
         ->and($checks[0])->toContain('_id_content_CHECK')
-        ->and($checks[0])->toMatch('/CHECK \(.*id.*= content_id\)$/i')
+        ->and($checks[0])->toEndWith('CHECK ("ID" = content_id)')
         ->and(implode("\n", $sql))->not->toContain('CREATE TRIGGER');
 });

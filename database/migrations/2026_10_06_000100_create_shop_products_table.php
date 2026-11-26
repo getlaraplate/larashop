@@ -55,7 +55,9 @@ return new class extends Migration
 
         if ($driver_name === 'pgsql' || Db2Drivers::is($driver_name)) {
             $wrapped_constraint = $grammar->wrap("{$table_name}_id_content_CHECK");
-            $connection->statement("ALTER TABLE {$wrapped_table} ADD CONSTRAINT {$wrapped_constraint} CHECK (id = content_id)");
+            $wrapped_id = $grammar->wrap('id');
+            $wrapped_content_id = $grammar->wrap('content_id');
+            $connection->statement("ALTER TABLE {$wrapped_table} ADD CONSTRAINT {$wrapped_constraint} CHECK ({$wrapped_id} = {$wrapped_content_id})");
         } elseif (in_array($driver_name, ['mysql', 'mariadb'], true)) {
             foreach (['INSERT' => 'insert', 'UPDATE' => 'update'] as $event => $suffix) {
                 $wrapped_trigger = $grammar->wrap("{$table_name}_id_content_{$suffix}");
