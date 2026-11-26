@@ -24,7 +24,7 @@ use Modules\Shop\Models\VariantItem;
 use Modules\Shop\Tests\TestCase;
 
 pest()->extend(TestCase::class)
-    ->in(__DIR__ . '/Unit', __DIR__ . '/Feature');
+    ->in(__DIR__ . '/Unit', __DIR__ . '/Feature', __DIR__ . '/Integration');
 
 pest()->use(RefreshDatabase::class)
     ->in(__DIR__ . '/Feature');

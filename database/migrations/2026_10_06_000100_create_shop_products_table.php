@@ -7,6 +7,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Modules\CMS\Enums\CMSTables;
 use Modules\Core\Helpers\MigrateUtils;
+use Modules\Core\Support\Db2Drivers;
 use Modules\ERP\Helpers\ERPMigrateUtils;
 use Modules\Shop\Enums\ProductKind;
 use Modules\Shop\Enums\ShopTables;
@@ -46,13 +47,13 @@ return new class extends Migration
         });
 
         // The database keeps `id` = `content_id` where it can, as Core's taxonomies migration guards its own rule:
-        // a CHECK on PostgreSQL; triggers on MySQL and MariaDB, which refuse a CHECK on a column a foreign key uses
+        // a CHECK on PostgreSQL and Db2; triggers on MySQL and MariaDB, which refuse a CHECK on a column a foreign key uses
         // (error 3823). SQLite cannot add a CHECK to an existing table: there the model is the only guard.
         $driver_name = $connection->getDriverName();
         $grammar = $connection->getQueryGrammar();
         $wrapped_table = $grammar->wrapTable($table_name);
 
-        if ($driver_name === 'pgsql') {
+        if ($driver_name === 'pgsql' || Db2Drivers::is($driver_name)) {
             $wrapped_constraint = $grammar->wrap("{$table_name}_id_content_CHECK");
             $connection->statement("ALTER TABLE {$wrapped_table} ADD CONSTRAINT {$wrapped_constraint} CHECK (id = content_id)");
         } elseif (in_array($driver_name, ['mysql', 'mariadb'], true)) {
